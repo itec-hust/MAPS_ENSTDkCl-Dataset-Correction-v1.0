@@ -1,0 +1,212 @@
+function 
+% function input song_list model_1,model_2
+
+% disapperNote  = disapperNote( file1,file2,time_tolerance )
+% commonNote = commonNote( file1,file2,time_tolerance )
+
+% directory structure
+% model name -> onset tolerance -> mistake classification -> song name
+% example:
+% GOOGLE\analy_GOOGLE_005\missing\MAPS_MUS-alb_se2_ENSTDkCl.txt
+% meaning:the missing notes of MAPS_MUS-alb_se2_ENSTDkCl
+% of google model, setting the evaluation onset tolerance to be 0.05 seconds
+% the name of all songs are saved in song_list
+
+model_1 = 'CNN';
+model_2 = 'GOOGLE';
+load('songList.mat');
+
+slopeplot = [];
+commonplot=[];
+disaplot=[];
+pares=[];
+result = [];
+noteall = [];
+ambi = [];
+%% finding common missing note in these two models
+for i = 1:size(songList,1)
+    model_1_005_M_path = fullfile('.',model_1,['analy_' model_1 '_005'],'missing',[songList{i} '.txt']);
+    model_1_015_M_path = fullfile('.',model_1,['analy_' model_1 '_015'],'missing',[songList{i} '.txt']);
+    disapper_1 = disapperNote( model_1_005_M_path,model_1_015_M_path,0,1 );
+    common_1 = commonNote( model_1_005_M_path,model_1_015_M_path,0,1 );
+    
+    model_2_005_M_path = fullfile('.',model_2,['analy_' model_2 '_005'],'missing',[songList{i} '.txt']);
+    model_2_015_M_path = fullfile('.',model_2,['analy_' model_2 '_015'],'missing',[songList{i} '.txt']);
+    disapper_2 = disapperNote( model_2_005_M_path,model_2_015_M_path,0,1 );
+    common_2 = commonNote( model_2_005_M_path,model_2_015_M_path,0,1 );
+    
+    model_1_005_S_path = fullfile('.',model_1,['analy_' model_1 '_005'],'surplus',[songList{i} '.txt']);
+    model_2_005_S_path = fullfile('.',model_2,['analy_' model_2 '_005'],'surplus',[songList{i} '.txt']);
+    missSurPares_1 = commonNote( model_1_005_S_path,model_1_005_M_path,0.15,1 );
+    missSurPares_2 = commonNote( model_2_005_S_path,model_2_005_M_path,0.15,1 );
+    
+    
+    common_Disapper = commonNote( disapper_1,disapper_2,0,0);
+    common_All = commonNote( common_1,common_2,0,0);
+    common_pares = commonNote( missSurPares_1,missSurPares_2,0.05,0 );
+    common_pares = commonNote( common_Disapper,common_pares,0,0 );
+
+    load(['.\midislope\' songList{i}])%midiSlope
+    load(['.\slopedata\' songList{i}])%slopedata
+    %% 基于common_pares的筛选
+    for j = 1:size(common_pares,1)
+        indexfind = find(midiSlope(:,1)==common_pares(j,1)&midiSlope(:,3)==common_pares(j,3));
+        s1 = slopedata{indexfind,1};%(:,15:19);
+        s2 = slopedata{indexfind,2};%(:,15:19);
+        
+        common_pares(j,4) = max(max(max(s1(:,10:19)),max(s2(:,10:19))));
+        common_pares(j,5) = max(max(max(s1),max(s2)));
+        
+    end
+    for j =  size(common_pares,1):-1:1
+        if common_pares(j,4) > common_pares(j,5)*0.25
+            ambi = [ambi;common_pares(j,:)];
+            common_pares(j,:)=[];
+            continue
+        end
+    end
+    
+    
+    
+    
+    midiHere = midiSlope(:,1:3);
+    for j = 1:size(midiHere,1)
+        s1 = slopedata{j,1};%(:,15:19);
+        s2 = slopedata{j,2};%(:,15:19);
+        midiHere(j,4) = max(max(max(s1(:,10:19)),max(s2(:,10:19))));
+        midiHere(j,5) = max(max(max(s1),max(s2)));
+    end
+    
+    
+    
+    
+    
+    
+    
+    
+    %%
+    for j = 1:size(common_Disapper,1)
+        indexfind = find(midiSlope(:,1)==common_Disapper(j,1)&midiSlope(:,3)==common_Disapper(j,3));
+        s1 = slopedata{indexfind,1};%(:,15:19);
+        s2 = slopedata{indexfind,2};%(:,15:19);
+        slopemax_all=max(max(max(s1)),max(max(s2)));
+        slopemax_100=max(max(max(s1(:,11:20))),max(max(s2(:,11:20))));
+        %slopemax=max(max(s1));
+        
+        common_Disapper(j,4) = slopemax_all;
+        common_Disapper(j,5) = slopemax_100;
+    end
+    
+    for j = 1:size(common_All,1)
+        indexfind = find(midiSlope(:,1)==common_All(j,1)&midiSlope(:,3)==common_All(j,3));
+        
+        s1 = slopedata{indexfind,1};%(:,15:19);
+        s2 = slopedata{indexfind,2};%(:,15:19);
+        slopemax_all=max(max(max(s1)),max(max(s2)));
+        slopemax_100=max(max(max(s1(:,11:20))),max(max(s2(:,11:20))));
+        %slopemax=max(max(s1));
+        
+        common_All(j,4) = slopemax_all;
+        common_All(j,5) = slopemax_100;
+    end
+    findAll = [common_All;common_Disapper];
+    
+    
+    slopemaxall=[];
+    for j = 1:size(slopedata,1)
+        %slopemax=max(max(max(slopedata{j,1})),max(max(slopedata{j,2})));
+        s1 = slopedata{j,1};%(:,15:19);
+        s2 = slopedata{j,2};%(:,15:19);
+        slopemax_all=max(max(max(s1)),max(max(s2)));
+        slopemax_100=max(max(max(s1(:,11:20))),max(max(s2(:,11:20))));
+        slopemaxall(j,1:3) = midiSlope(j,1:3);
+        slopemaxall(j,4) = slopemax_all;
+        slopemaxall(j,5) = slopemax_100;
+        
+        flag = slopemax_all + slopemax_100 <= 0.01;
+        
+        if flag;
+            flag = midiSlope(find(findAll(:,1)==midiSlope(j,1)& findAll(:,3)==midiSlope(j,3)),:);
+            if isempty(flag)
+                result = [result;slopemaxall(j,:)];
+            end
+        end
+    end
+    
+    
+    
+    
+    slopeplot=[slopeplot;slopemaxall];%(:,4:5)];
+    commonplot=[commonplot;common_All];%(:,4:5)];
+    disaplot=[disaplot;common_Disapper];%(:,4:5)];
+    pares = [pares;common_pares];
+    noteall = [noteall;midiHere];
+    %     figure(1)
+    %     scatter(slopemaxall(:,4),slopemaxall(:,5),'c');
+    %     hold on
+    %     scatter(common_All(:,4),common_All(:,5),'b');
+    %     hold on
+    %     scatter(common_Disapper(:,4),common_Disapper(:,5),'r')
+    %     hold off
+    %     j;
+    
+    
+    
+    
+    
+    
+end
+
+% figure(1)
+% scatter(slopeplot(:,1),slopeplot(:,2),'c','*');
+% hold on
+% scatter(commonplot(:,1),commonplot(:,2),'b','*');
+% hold on
+% scatter(disaplot(:,1),disaplot(:,2),'r','*')
+% hold off
+
+
+
+%%
+slopeplot(slopeplot(:,3)<48,:)=[];
+commonplot(commonplot(:,3)<48,:)=[];
+disaplot(disaplot(:,3)<48,:)=[];
+pares(pares(:,3)<48,:)=[];
+noteall(noteall(:,3)<48,:)=[];
+
+
+figure(2)
+edges = [-1 0:0.01:10 15];
+tmp = slopeplot(:,4)+slopeplot(:,5);
+histogram(tmp,edges)
+
+hold on
+%figure(2)
+tmp = commonplot(:,4)+commonplot(:,5);
+tmp2 = [];
+%tmp2 = disaplot(:,4)+disaplot(:,5);
+histogram([tmp;tmp2],edges)
+hold off
+
+figure(3)
+tmp = slopeplot(:,4)+slopeplot(:,5);
+histogram(tmp,edges)
+hold on
+histogram(disaplot(:,4)+disaplot(:,5),edges)
+hold off
+%%
+tmp = slopeplot(:,4)+slopeplot(:,5);
+hist1=[];
+for i = 0:0.1:20
+    hist1(end+1) = length(find(tmp>=i & tmp<i+0.1));
+end
+
+tmp = commonplot(:,4)+commonplot(:,5);
+tmp2 = disaplot(:,4)+disaplot(:,5);
+tmpall = [tmp;tmp2];
+hist2=[];
+for i = 0:0.1:20
+    hist2(end+1) = length(find(tmpall>=i & tmpall<i+0.1));
+end
+
+%% finding common missing note in these two models
